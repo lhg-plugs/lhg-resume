@@ -1,0 +1,1 @@
+{"$schema":"https://json.schemastore.org/claude-code-marketplace.json","name":"lhg-plugs","owner":{"name":"刘洪光"},"plugins":[{"description":"简历优化专家：ATS诊断→bullet量化改写→多版本管理→模拟面试，求职一条龙","name":"lhg-resume","source":"./"}]}
