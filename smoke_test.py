@@ -3,8 +3,8 @@
 
 检查项：
  1. 三个 JSON 合法（plugin.json / marketplace.json / hooks.json）
- 2. 4 个 SKILL.md 都有 name/description frontmatter，且 150~320 行
- 3. 3 个 commands 都有 description frontmatter
+ 2. 6 个 SKILL.md 都有 name/description frontmatter，且 150~320 行
+ 3. 5 个 commands 都有 description frontmatter
  4. 3 个 agents 都有 name/description/tools/model frontmatter
  5. skills 平台中立：不含 Claude Code 专有工具名
  6. fixtures：坏 fixture 的埋点规则必须全部命中且脚本 exit!=0；
@@ -66,14 +66,18 @@ CVL_BAD_MUST = {
     "CVL-SAL-001", "CVL-COMP-001", "CVL-LEN-001",
     "CVL-CLICHE-001", "CVL-CTC-001",
 }
+# LinkedIn 用例埋点（坏 LinkedIn 资料必须全部命中）
+LIN_BAD_MUST = {
+    "LIN-HDL-001", "LIN-ABT-001", "LIN-EXP-001", "LIN-SKL-001",
+}
 # 平台中立红线：skill 正文不许出现这些 Claude Code 专有表述
 NEUTRAL_DENY = ["Task tool", "Bash tool", "Edit tool", "Write tool", "Read tool",
                 "AskUserQuestion", "subagent_type", "PreToolUse", "PostToolUse",
                 "${CLAUDE_", "CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR"]
 
 SKILLS = ["lhg-rs-ats", "lhg-rs-bullet", "lhg-rs-version", "lhg-rs-interview",
-         "lhg-cover-letter"]
-COMMANDS = ["resume", "resume-interview", "resume-audit", "cover-letter"]
+         "lhg-cover-letter", "lhg-linkedin"]
+COMMANDS = ["resume", "resume-interview", "resume-audit", "cover-letter", "linkedin"]
 AGENTS = ["resume-builder", "resume-auditor", "interview-coach"]
 
 
@@ -175,6 +179,19 @@ def main():
     check("好求职信 零 blocker", s and s["blocker"] == 0, str(s))
     check("好求职信 exit==0", code == 0, "exit=%d" % code)
     check("好求职信 零 warning", s and s["warning"] == 0, str(s))
+
+    # 5c. LinkedIn 用例冒烟（LinkedIn 资料文件只跑 LIN-* 规则）
+    s, code, ids = audit_hits("fixtures/bad-linkedin.md", with_jd=False)
+    check("坏 LinkedIn exit!=0", code != 0, "exit=%d" % code)
+    check("坏 LinkedIn blocker>0", s and s["blocker"] > 0, str(s))
+    missing = LIN_BAD_MUST - set(ids)
+    check("坏 LinkedIn 埋点全命中 (%d/%d)" % (len(LIN_BAD_MUST - missing), len(LIN_BAD_MUST)),
+          not missing, "缺失: %s" % sorted(missing))
+
+    s, code, ids = audit_hits("fixtures/good-linkedin.md", with_jd=False)
+    check("好 LinkedIn 零 blocker", s and s["blocker"] == 0, str(s))
+    check("好 LinkedIn exit==0", code == 0, "exit=%d" % code)
+    check("好 LinkedIn 零 warning", s and s["warning"] == 0, str(s))
 
     # 6. hooks 脚本
     def hook(script, payload, env=None):

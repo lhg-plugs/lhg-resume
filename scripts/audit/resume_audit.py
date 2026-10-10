@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""lhg-resume 确定性审计：11 条简历规则 + 5 条求职信规则，零第三方依赖。
+"""lhg-resume 确定性审计：11 条简历规则 + 5 条求职信规则 + 4 条 LinkedIn 规则，零第三方依赖。
 
 扫描目标（单个 .md/.txt 文件或目录），输出 JSON 与人类可读报告；
 有 blocker 时以 exit code 2 退出（供 hooks 与 CI 使用）。
 求职信文件（文件名含 cover/求职信，或正文有求职信特征）只跑 CVL-* 规则，
+LinkedIn 资料文件（文件名含 linkedin，或正文有 LinkedIn 资料特征）只跑 LIN-* 规则，
 简历文件只跑 RES-* 规则。
 
 用法：
@@ -19,7 +20,7 @@ import os
 import re
 import sys
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 TOOL = "lhg-resume/resume-audit"
 
 SCAN_EXTS = {".md", ".txt", ".text"}
@@ -328,6 +329,18 @@ def r_len_001(lines, text, path, ctx):
 
 # ================================================================ 求职信规则
 
+def _doc_kind(path, text):
+    """三类文档判定：linkedin → cover letter → resume（优先级从高到低）。"""
+    if _is_linkedin(path, text):
+        return "linkedin"
+    if _is_cover_letter(path, text):
+        return "cover"
+    return "resume"
+
+
+_DOC_PREFIX = {"resume": "RES-", "cover": "CVL-", "linkedin": "LIN-"}
+
+
 def _is_cover_letter(path, text):
     """求职信判定：文件名或正文特征二者命中其一即算。"""
     base = os.path.basename(path).lower()
@@ -438,6 +451,86 @@ def r_cvl_ctc_001(lines, text, path, ctx):
     return []
 
 
+# ================================================================ LinkedIn 规则
+
+# LinkedIn headline 平台硬限（字符数，中文按字算）
+LI_HEADLINE_LIMIT = 220
+
+
+def _is_linkedin(path, text):
+    """LinkedIn 资料判定：文件名或正文特征二者命中其一即算。"""
+    base = os.path.basename(path).lower()
+    if "linkedin" in base:
+        return True
+    head = text[:2000]
+    if "LinkedIn" in head and ("headline" in head.lower() or "头衔" in head):
+        return True
+    return False
+
+
+_LI_HEADLINE_HDR = re.compile(r"^#{1,4}\s*(headline|职业头衔|头衔)\b", re.I)
+_LI_ABOUT_HDR = re.compile(r"^#{1,4}\s*(about|关于|自我介绍|简介|summary)\b", re.I)
+_LI_SKILL_HDR = re.compile(r"^#{1,4}\s*(技能|skills|专长|endorsements)\b", re.I)
+
+
+def _li_section_body(lines, hdr_re):
+    """取某章节标题之后、下个标题之前的所有正文行。"""
+    body, in_sec = [], False
+    for ln in lines:
+        hm = HEADER_RE.match(ln)
+        if hm:
+            if hdr_re.search(hm.group(0)):
+                in_sec = True
+                continue
+            if in_sec:
+                break
+            continue
+        if in_sec and ln.strip():
+            body.append(ln.strip())
+    return body
+
+
+@rule("LIN-HDL-001", "warning", "LinkedIn", "headline 超长",
+      "headline 超过 LinkedIn 220 字符硬限。超限部分在搜索结果里会被截断：砍修饰词，身份+差异化标签+数字不许砍。")
+def r_lin_hdl_001(lines, text, path, ctx):
+    body = _li_section_body(lines, _LI_HEADLINE_HDR)
+    if not body:
+        return []
+    headline = " ".join(body[:3])
+    if len(headline) > LI_HEADLINE_LIMIT:
+        return [_finding("LIN-HDL-001", path, 1,
+                         "headline %d 字符，超限 %d" % (len(headline), len(headline) - LI_HEADLINE_LIMIT))]
+    return []
+
+
+@rule("LIN-ABT-001", "blocker", "LinkedIn", "About 板块缺失",
+      "没找到 About/关于/自我介绍板块。About 是资料里唯一能讲故事的地方，缺了它猎头点开又关掉：按钩子→转折→能力证据→联系方式四段补上。")
+def r_lin_abt_001(lines, text, path, ctx):
+    if not any(_LI_ABOUT_HDR.search(hm.group(0))
+               for ln in lines for hm in [HEADER_RE.match(ln)] if hm):
+        return [_finding("LIN-ABT-001", path, 1, "未检测到 About/关于/自我介绍章节")]
+    return []
+
+
+@rule("LIN-EXP-001", "warning", "LinkedIn", "经历描述无量化成果",
+      "经历 bullet 里没数字。LinkedIn 的经历栏是'平台版成绩单'：每条 bullet 用强动词开头+带一个数字，编不出就标[待确认]。")
+def r_lin_exp_001(lines, text, path, ctx):
+    out = []
+    for lineno, body in _bullets(lines):
+        if body and not _has_number(body) and "[待确认]" not in body:
+            out.append(_finding("LIN-EXP-001", path, lineno, body))
+    return out
+
+
+@rule("LIN-SKL-001", "warning", "LinkedIn", "技能标签缺失",
+      "没找到技能/ Skills 板块。招聘者用技能词筛人，没有标签就搜不到你：列 10–15 个，硬技能在前占 2/3。")
+def r_lin_skl_001(lines, text, path, ctx):
+    if not any(_LI_SKILL_HDR.search(hm.group(0))
+               for ln in lines for hm in [HEADER_RE.match(ln)] if hm):
+        return [_finding("LIN-SKL-001", path, 1, "未检测到技能/Skills 章节")]
+    return []
+
+
 # ---------------------------------------------------------------- 运行器
 
 def collect_files(target):
@@ -468,12 +561,13 @@ def run(target, jd_text=""):
     for path in files:
         text = read_text(path)
         lines = text.split("\n")
-        is_cl = _is_cover_letter(path, text)
-        ctx["is_cover_letter"] = is_cl
+        kind = _doc_kind(path, text)
+        prefix = _DOC_PREFIX[kind]
+        ctx["doc_kind"] = kind
         rel = os.path.relpath(path, target) if os.path.isdir(target) else os.path.basename(path)
         for r in RULES:
-            # 求职信文件只跑 CVL-* 规则，简历文件只跑 RES-* 规则
-            if is_cl != r["id"].startswith("CVL-"):
+            # 三类文档各跑各的前缀规则：RES-*/CVL-*/LIN-* 互不串扰
+            if not r["id"].startswith(prefix):
                 continue
             try:
                 for f in r["check"](lines, text, path, ctx) or []:
