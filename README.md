@@ -1,11 +1,11 @@
 <!-- About 简介（推送后填写到仓库 About 栏）：
-简历优化专家：ATS诊断到模拟面试一条龙 ｜ 一键安装：/plugin marketplace add lhg-plugs/lhg-resume
+简历优化专家：ATS诊断到模拟面试一条龙 + 针对性求职信 ｜ 一键安装：/plugin marketplace add lhg-plugs/lhg-resume
 -->
 <!-- topics（推送后打）：claude-code, claude-plugin, agent-skills, resume, career, ats -->
 
 # lhg-resume：简历优化专家
 
-> **一句话介绍**：给 AI 助手装上"求职组合拳"——粘贴简历+JD，ATS 诊断→bullet 量化改写→多版本管理→PDF 导出→模拟面试，一条龙拿到面试。
+> **一句话介绍**：给 AI 助手装上"求职组合拳"——粘贴简历+JD，ATS 诊断→bullet 量化改写→多版本管理→PDF 导出→模拟面试→针对性求职信，一条龙拿到面试。
 >
 > **一键安装**：在 Claude Code 里运行
 > ```
@@ -21,19 +21,20 @@
 
 `lhg-resume` 是一个 Claude Code 插件（plugin 为主、skill 为辅）：
 
-- **3 个命令**（小白入口）：`resume` 简历优化一条龙，`resume-interview` 模拟面试，`resume-audit` 简历体检
-- **4 个平台中立 skill**（方法论，可移植到豆包/Workbuddy 等）：ATS 诊断、bullet 改写、多版本管理、模拟面试（STAR）
+- **4 个命令**（小白入口）：`resume` 简历优化一条龙，`resume-interview` 模拟面试，`resume-audit` 简历体检，`cover-letter` 针对性求职信
+- **5 个平台中立 skill**（方法论，可移植到豆包/Workbuddy 等）：ATS 诊断、bullet 改写、多版本管理、模拟面试（STAR）、求职信（三段式）
 - **3 个专家 agent**：简历构建、简历审计、模拟面试官
 - **2 个硬门 hooks**：上传简历拦截（隐私）、写简历文件提醒（均可一键豁免）
-- **10 条确定性审计规则**：纯 Python、零第三方依赖，10 秒出结果
+- **16 条确定性审计规则**：11 条简历 + 5 条求职信（占位符/公司名校验/超一页/空话套话/联系方式），纯 Python、零第三方依赖，10 秒出结果
 
-## 3 个命令用法
+## 4 个命令用法
 
 | 命令 | 作用 | 示例 |
 |---|---|---|
 | `/lhg-resume:resume` | 简历+JD 一条龙：ATS 诊断→bullet 改写→多版本→PDF 导出 | `/lhg-resume:resume`（然后粘贴简历和 JD） |
 | `/lhg-resume:resume-interview` | 模拟面试：预测题→一次一题问答→STAR 评分→复盘 | `/lhg-resume:resume-interview --rounds 3` |
-| `/lhg-resume:resume-audit` | 简历体检：10 条规则审计 + 人工复核清单 | `/lhg-resume:resume-audit --jd jd.txt` |
+| `/lhg-resume:resume-audit` | 简历体检：16 条规则审计 + 人工复核清单 | `/lhg-resume:resume-audit --jd jd.txt` |
+| `/lhg-resume:cover-letter` | 针对性求职信：JD 拆解→三段式写作→称呼/公司名/岗位名校验 | `/lhg-resume:cover-letter --resume resume.md`（然后粘贴 JD） |
 
 ## 自查说明
 
@@ -50,12 +51,12 @@ blocker 清零才算"可投递"；**为清零编数字算作弊，绝不许**。
 ```
 lhg-resume/
 ├── .claude-plugin/          # plugin.json（插件清单）+ marketplace.json（本仓即市场）
-├── commands/                # 3 个命令：resume / resume-interview / resume-audit
-├── skills/                  # 4 个平台中立 skill（lhg-rs-ats/bullet/version/interview）
+├── commands/                # 4 个命令：resume / resume-interview / resume-audit / cover-letter
+├── skills/                  # 5 个平台中立 skill（lhg-rs-ats/bullet/version/interview/cover-letter）
 ├── agents/                  # 3 个专家 agent（resume-builder / resume-auditor / interview-coach）
 ├── hooks/                   # 2 个硬门（上传拦截 / 写简历提醒）+ 豁免说明
-├── scripts/audit/           # 10 条确定性审计规则（零第三方依赖）
-├── fixtures/                # 冒烟测试用例（bad.md / good.md / jd.txt）
+├── scripts/audit/           # 16 条确定性审计规则（11 简历 + 5 求职信，零第三方依赖）
+├── fixtures/                # 冒烟测试用例（bad.md / good.md / jd.txt + 求职信 bad/good/jd-cover-letter.txt）
 ├── smoke_test.py            # 一键冒烟测试
 ├── ATTRIBUTION.md           # 灵感来源与许可声明
 └── LICENSE                  # MIT
@@ -69,6 +70,7 @@ lhg-resume/
 - 你的简历全是"负责""参与"，想改成"做成了什么" → `lhg-rs-bullet` 的动词库+量化公式就是干这个的
 - 你海投 10 家，想每家都定制一版不断片 → `lhg-rs-version` 的版本库+CHANGELOG
 - 你拿到面试了，想提前把坑踩完 → `/lhg-resume:resume-interview`，一次一题，真追问
+- 你要投一家特别想去的公司，想附一封针对性求职信 → `/lhg-resume:cover-letter`，JD 拆解→三段式→三要素校验，一家公司一封
 
 **什么时候不用：**
 
@@ -84,12 +86,12 @@ hooks 会拦截 `curl -F` 上传、`scp` 传送等可疑命令。如需外发，
 
 | 插件 | 一句话 | 安装 |
 |---|---|---|
-| [lhg-resume](https://github.com/lhg-plugs/lhg-resume) | 简历优化专家：ATS 诊断到模拟面试一条龙 | `/plugin install lhg-resume@lhg-plugs` |
+| [lhg-resume](https://github.com/lhg-plugs/lhg-resume) | 简历优化专家：ATS 诊断到模拟面试一条龙 + 针对性求职信 | `/plugin install lhg-resume@lhg-plugs` |
 | *（后续插件在此追加，保持表格格式一致）* | | |
 
 ## 自检与反馈
 
-本插件自带质检：每次使用后可跑 `python3 smoke_test.py` 一键验证（JSON 合法、skill/command/agent 完整性、10 条规则、fixtures 命中、hooks 行为）。
+本插件自带质检：每次使用后可跑 `python3 smoke_test.py` 一键验证（JSON 合法、skill/command/agent 完整性、16 条规则、fixtures 命中、hooks 行为）。
 
 发现 bug 或有改进建议，以 `[QC] <一句话问题>` 为标题提交到 https://github.com/lhg-plugs/lhg-resume/issues，正文写清"复现步骤 → 实际表现 → 期望表现"。
 

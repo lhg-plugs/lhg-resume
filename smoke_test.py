@@ -61,13 +61,19 @@ RES_BAD_MUST = {
     "RES-PII-001", "RES-PII-002", "RES-FMT-001", "RES-SEC-001",
     "RES-BLT-001", "RES-BLT-002", "RES-BLT-003", "RES-JD-001",
 }
+# 求职信用例埋点（坏求职信必须全部命中）
+CVL_BAD_MUST = {
+    "CVL-SAL-001", "CVL-COMP-001", "CVL-LEN-001",
+    "CVL-CLICHE-001", "CVL-CTC-001",
+}
 # 平台中立红线：skill 正文不许出现这些 Claude Code 专有表述
 NEUTRAL_DENY = ["Task tool", "Bash tool", "Edit tool", "Write tool", "Read tool",
                 "AskUserQuestion", "subagent_type", "PreToolUse", "PostToolUse",
                 "${CLAUDE_", "CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR"]
 
-SKILLS = ["lhg-rs-ats", "lhg-rs-bullet", "lhg-rs-version", "lhg-rs-interview"]
-COMMANDS = ["resume", "resume-interview", "resume-audit"]
+SKILLS = ["lhg-rs-ats", "lhg-rs-bullet", "lhg-rs-version", "lhg-rs-interview",
+         "lhg-cover-letter"]
+COMMANDS = ["resume", "resume-interview", "resume-audit", "cover-letter"]
 AGENTS = ["resume-builder", "resume-auditor", "interview-coach"]
 
 
@@ -133,11 +139,11 @@ def main():
               str({k: fm.get(k) for k in ("name", "model")}))
 
     # 5. 审计脚本冒烟
-    def audit_hits(target, with_jd=True):
+    def audit_hits(target, with_jd=True, jd_file="jd.txt"):
         cmd = [sys.executable, os.path.join(AUDIT, "resume_audit.py"),
                "--target", os.path.join(repo, target), "--format", "json"]
         if with_jd:
-            cmd += ["--jd", JD]
+            cmd += ["--jd", os.path.join(repo, "fixtures", jd_file)]
         r = run(cmd)
         try:
             d = json.loads(r.stdout)
@@ -156,6 +162,19 @@ def main():
     check("好 fixture 零 blocker", s and s["blocker"] == 0, str(s))
     check("好 fixture exit==0", code == 0, "exit=%d" % code)
     check("好 fixture 零 warning", s and s["warning"] == 0, str(s))
+
+    # 5b. 求职信用例冒烟（求职信文件只跑 CVL-* 规则）
+    s, code, ids = audit_hits("fixtures/bad-cover-letter.md", jd_file="jd-cover-letter.txt")
+    check("坏求职信 exit!=0", code != 0, "exit=%d" % code)
+    check("坏求职信 blocker>0", s and s["blocker"] > 0, str(s))
+    missing = CVL_BAD_MUST - set(ids)
+    check("坏求职信埋点全命中 (%d/%d)" % (len(CVL_BAD_MUST - missing), len(CVL_BAD_MUST)),
+          not missing, "缺失: %s" % sorted(missing))
+
+    s, code, ids = audit_hits("fixtures/good-cover-letter.md", jd_file="jd-cover-letter.txt")
+    check("好求职信 零 blocker", s and s["blocker"] == 0, str(s))
+    check("好求职信 exit==0", code == 0, "exit=%d" % code)
+    check("好求职信 零 warning", s and s["warning"] == 0, str(s))
 
     # 6. hooks 脚本
     def hook(script, payload, env=None):

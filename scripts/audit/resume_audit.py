@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""lhg-resume 确定性简历审计：11 条规则，零第三方依赖。
+"""lhg-resume 确定性审计：11 条简历规则 + 5 条求职信规则，零第三方依赖。
 
-扫描目标（单个 .md/.txt 简历文件或目录），输出 JSON 与人类可读报告；
+扫描目标（单个 .md/.txt 文件或目录），输出 JSON 与人类可读报告；
 有 blocker 时以 exit code 2 退出（供 hooks 与 CI 使用）。
+求职信文件（文件名含 cover/求职信，或正文有求职信特征）只跑 CVL-* 规则，
+简历文件只跑 RES-* 规则。
 
 用法：
-    python3 resume_audit.py --target <简历文件或目录> [--jd <JD文件>] [--format json|text] [--fail-on blocker|warning|nit]
+    python3 resume_audit.py --target <文件或目录> [--jd <JD文件>] [--format json|text] [--fail-on blocker|warning|nit]
 
 规则文案均为本项目原创（方法论思路受 ResumeSkills 等开源项目启发，
 未复制任何第三方原文案与代码）。
@@ -17,7 +19,7 @@ import os
 import re
 import sys
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 TOOL = "lhg-resume/resume-audit"
 
 SCAN_EXTS = {".md", ".txt", ".text"}
@@ -324,6 +326,118 @@ def r_len_001(lines, text, path, ctx):
     return []
 
 
+# ================================================================ 求职信规则
+
+def _is_cover_letter(path, text):
+    """求职信判定：文件名或正文特征二者命中其一即算。"""
+    base = os.path.basename(path).lower()
+    if "cover" in base or "求职信" in base:
+        return True
+    head = text[:2000]
+    if "求职信" in head:
+        return True
+    if ("尊敬的" in head or "您好" in head) and "贵公司" in head:
+        return True
+    if "Dear " in head and ("cover letter" in head.lower() or "position" in head.lower()):
+        return True
+    return False
+
+
+# JD 显式声明行：公司：xxx / 岗位：xxx（CVL-COMP-001 用）
+_JD_COMPANY_RE = re.compile(r"^\s*(?:公司|公司名|Company)\s*[:：]\s*(.+?)\s*$", re.M)
+_JD_POSITION_RE = re.compile(r"^\s*(?:岗位|职位|岗位名|Position)\s*[:：]\s*(.+?)\s*$", re.M)
+
+
+def _jd_company_position(jd_text):
+    company = position = ""
+    m = _JD_COMPANY_RE.search(jd_text or "")
+    if m:
+        company = m.group(1).strip()
+    m = _JD_POSITION_RE.search(jd_text or "")
+    if m:
+        position = m.group(1).strip()
+    return company, position
+
+
+_PLACEHOLDER_RE = re.compile(r"\[[^\[\]\n]{1,20}\]|\{\{[^{}]{1,30}\}\}")
+# [待确认] 是本插件的合法标记，不算占位符残留
+_ALLOWED_BRACKETS = {"待确认"}
+
+
+@rule("CVL-SAL-001", "blocker", "求职信", "称呼/占位符未替换",
+      "信里残留 [Hiring Manager]、{{company}} 这类占位符。称呼必须写具体人名或\"尊敬的招聘负责人\"，占位符发出去等于告诉对方这是群发。")
+def r_cvl_sal_001(lines, text, path, ctx):
+    out = []
+    for i, ln in enumerate(lines):
+        for m in _PLACEHOLDER_RE.finditer(ln):
+            inner = m.group(0).strip("[]{}").strip()
+            if inner in _ALLOWED_BRACKETS:
+                continue
+            out.append(_finding("CVL-SAL-001", path, i + 1,
+                               "占位符残留：%s" % m.group(0)))
+    return out
+
+
+@rule("CVL-COMP-001", "blocker", "求职信", "公司名/岗位名与 JD 不一致",
+      "JD 里声明的公司名/岗位名在信里找不到。把 A 公司的信发给 B 公司是投递事故：逐字核对，缩写也不许改。")
+def r_cvl_comp_001(lines, text, path, ctx):
+    jd = ctx.get("jd_text", "")
+    company, position = _jd_company_position(jd)
+    if not company and not position:
+        return []
+    out = []
+    if company and company not in text:
+        out.append(_finding("CVL-COMP-001", path, 1,
+                           "JD 公司名「%s」在信中未出现" % company))
+    if position and position not in text:
+        out.append(_finding("CVL-COMP-001", path, 1,
+                           "JD 岗位名「%s」在信中未出现" % position))
+    return out
+
+
+@rule("CVL-LEN-001", "warning", "求职信", "求职信超一页",
+      "正文超 1100 字（约一页纸上限）。求职信不是自传：砍第二段最弱的一个证据，超长的信等于告诉对方你抓不住重点。")
+def r_cvl_len_001(lines, text, path, ctx):
+    n = len(re.sub(r"\s", "", text))
+    if n > 1100:
+        return [_finding("CVL-LEN-001", path, 1, "全文约 %d 字，超一页" % n)]
+    return []
+
+
+# 无证据形容词（中英）：出现即判空话套话
+_CLICHE_RE = re.compile(
+    r"吃苦耐劳|任劳任怨|踏实肯干|工作认真负责|富有团队精神|高度责任心|"
+    r"hardworking team player|team player|self-starter|highly motivated|"
+    r"detail-oriented|fast learner|people person|go-getter|passionate self-starter",
+    re.I)
+
+
+@rule("CVL-CLICHE-001", "warning", "求职信", "空话套话",
+      "检测到无证据形容词（如 吃苦耐劳 / hardworking team player）。形容词不带证据就是噪音：删掉，或换成\"做了什么+数字结果\"。")
+def r_cvl_cliche_001(lines, text, path, ctx):
+    out = []
+    for i, ln in enumerate(lines):
+        m = _CLICHE_RE.search(ln)
+        if m:
+            out.append(_finding("CVL-CLICHE-001", path, i + 1,
+                               "空话套话：%s" % m.group(0)))
+    return out
+
+
+@rule("CVL-CTC-001", "blocker", "求职信", "联系方式缺失",
+      "没找到手机号或邮箱。求职信经常被单独转发，不能假设\"简历里有就行\"：电话+邮箱必须出现在信里。")
+def r_cvl_ctc_001(lines, text, path, ctx):
+    if not PHONE_RE.search(text) or not EMAIL_RE.search(text):
+        missing = []
+        if not PHONE_RE.search(text):
+            missing.append("手机号")
+        if not EMAIL_RE.search(text):
+            missing.append("邮箱")
+        return [_finding("CVL-CTC-001", path, 1,
+                         "缺失：%s" % "、".join(missing))]
+    return []
+
+
 # ---------------------------------------------------------------- 运行器
 
 def collect_files(target):
@@ -354,8 +468,13 @@ def run(target, jd_text=""):
     for path in files:
         text = read_text(path)
         lines = text.split("\n")
+        is_cl = _is_cover_letter(path, text)
+        ctx["is_cover_letter"] = is_cl
         rel = os.path.relpath(path, target) if os.path.isdir(target) else os.path.basename(path)
         for r in RULES:
+            # 求职信文件只跑 CVL-* 规则，简历文件只跑 RES-* 规则
+            if is_cl != r["id"].startswith("CVL-"):
+                continue
             try:
                 for f in r["check"](lines, text, path, ctx) or []:
                     f.file = rel
