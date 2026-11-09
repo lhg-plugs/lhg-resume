@@ -33,7 +33,7 @@
 
 `lhg-resume` 是一个 Claude Code 插件（plugin 为主、skill 为辅）：
 
-- **5 个命令**（小白入口）：`cover-letter`求职信+JD 一条龙、`linkedin`LinkedIn 资料打造、`resume`简历+JD 一条龙、`resume-audit`简历体检、`resume-interview`基于你的简历模拟面试
+- **5 个命令**（小白入口）：`cover-letter` 求职信+JD 一条龙、`linkedin` LinkedIn 资料打造、`resume` 简历+JD 一条龙、`resume-audit` 简历体检、`resume-interview` 基于你的简历模拟面试
 - **6 个平台中立 skill**（方法论，可移植到豆包/Workbuddy 等 agent 平台）：lhg-cover-letter, lhg-linkedin, lhg-rs-ats, lhg-rs-bullet, lhg-rs-interview, lhg-rs-version
 - **3 个专家 agent**：interview-coach, resume-auditor, resume-builder
 - **2 个 hooks**（`hooks/`：post_resume_warn.py, pre_export_guard.py），关键操作前自动把关
@@ -55,8 +55,8 @@
 /plugin marketplace add lhg-plugs/lhg-resume
 /plugin install lhg-resume@lhg-plugs
 
-# 2. 求职信+JD 一条龙：JD 拆解→三段式求职信（钩子+匹配论证+行动收尾）→称呼
-/lhg-resume:cover-letter --resume resume.md（然后粘贴 JD）
+# 2. 简历+JD 一条龙：ATS诊断→bullet量化改写→多版本管理→PDF导出，全
+/lhg-resume:resume（然后粘贴简历和 JD）
 ```
 
 | 命令 | 作用 | 示例 |
