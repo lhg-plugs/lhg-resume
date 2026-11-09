@@ -1,101 +1,112 @@
 <!-- About 简介（推送后填写到仓库 About 栏）：
-简历优化专家：ATS诊断到模拟面试一条龙 + 针对性求职信 ｜ 一键安装：/plugin marketplace add lhg-plugs/lhg-resume
+简历优化专家：粘贴简历+JD，ATS诊断→bullet量化改写→多版本管理→PDF导出→模拟面试→针对性求职信→LinkedIn资料打造，求职一条龙组合拳。 ｜ 一键安装：/plugin marketplace add lhg-plugs/lhg-resume
 -->
-<!-- topics（推送后打）：claude-code, claude-plugin, agent-skills, resume, career, ats -->
+<!-- topics（推送后打）：claude-code, claude-plugin, agent-skills, resume, cv, ats, career, interview -->
 
-# lhg-resume：简历优化专家
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="lhg-resume — 简历优化专家">
+</p>
 
-> **一句话介绍**：给 AI 助手装上"求职组合拳"——粘贴简历+JD，ATS 诊断→bullet 量化改写→多版本管理→PDF 导出→模拟面试→针对性求职信→LinkedIn 资料打造，一条龙拿到面试。
->
-> **一键安装**：在 Claude Code 里运行
-> ```
-> /plugin marketplace add lhg-plugs/lhg-resume
-> /plugin install lhg-resume@lhg-plugs
-> ```
+> **一句话介绍**：简历优化专家：粘贴简历+JD，ATS诊断→bullet量化改写→多版本管理→PDF导出→模拟面试→针对性求职信→LinkedIn资料打造，求职一条龙组合拳。
 
-> **🔒 隐私声明（先看这个）**：你的简历只在本地处理，**绝不上传到任何外部服务**；
-> 本插件带隐私硬门，会拦截疑似上传简历的命令。另：本插件**不编造任何"已验证"数据**——
-> 没有证据的数字一律标 `[待确认]`，绝不替你编。
+**一键安装**：在 Claude Code 里运行
+
+```bash
+/plugin marketplace add lhg-plugs/lhg-resume
+/plugin install lhg-resume@lhg-plugs
+```
+
+## 它能帮你做出什么
+
+每条产出先过确定性脚本自查，再交人工复核清单——数字全部数自仓库里的审计脚本，不靠模型"自觉"。
+
+| 自查脚本 | 规则数 | blocker | warning | nit | 覆盖 |
+|---|---|---|---|---|---|
+| `scripts/audit/resume_audit.py` | 19 | 5 | 12 | 2 | 联系方式、隐私、格式、结构、表达、JD匹配、篇幅、求职信 |
+| **合计** | **19** | **5** | **12** | **2** | |
+
+- **零 LLM 成本**：规则是纯 Python 脚本，零第三方依赖，本地运行。
+- **坏 / 好对照可验**：`fixtures/` 里备有坏/好用例，冒烟测试断言命中情况。
+- **冒烟全绿**：`python3 smoke_test.py` 70 项全部通过（JSON 合法、frontmatter 完整、命令/skill/agent 齐全）。
 
 ## 它是什么
 
 `lhg-resume` 是一个 Claude Code 插件（plugin 为主、skill 为辅）：
 
-- **5 个命令**（小白入口）：`resume` 简历优化一条龙，`resume-interview` 模拟面试，`resume-audit` 简历体检，`cover-letter` 针对性求职信，`linkedin` LinkedIn 资料打造
-- **6 个平台中立 skill**（方法论，可移植到豆包/Workbuddy 等）：ATS 诊断、bullet 改写、多版本管理、模拟面试（STAR）、求职信（三段式）、LinkedIn 资料（headline/About/技能标签）
-- **3 个专家 agent**：简历构建、简历审计、模拟面试官
-- **2 个硬门 hooks**：上传简历拦截（隐私）、写简历文件提醒（均可一键豁免）
-- **20 条确定性审计规则**：11 条简历 + 5 条求职信 + 4 条 LinkedIn（headline 超限/About 缺失/经历无量化/技能标签缺失），纯 Python、零第三方依赖，10 秒出结果
+- **5 个命令**（小白入口）：`cover-letter`求职信+JD 一条龙、`linkedin`LinkedIn 资料打造、`resume`简历+JD 一条龙、`resume-audit`简历体检、`resume-interview`基于你的简历模拟面试
+- **6 个平台中立 skill**（方法论，可移植到豆包/Workbuddy 等 agent 平台）：lhg-cover-letter, lhg-linkedin, lhg-rs-ats, lhg-rs-bullet, lhg-rs-interview, lhg-rs-version
+- **3 个专家 agent**：interview-coach, resume-auditor, resume-builder
+- **2 个 hooks**（`hooks/`：post_resume_warn.py, pre_export_guard.py），关键操作前自动把关
+- **19 条确定性自查规则**：纯 Python 脚本，见上表
 
-## 4 个命令用法
+## 为什么是它
+
+不是一个 prompt，而是一套互相兜底的机制：
+
+1. **确定性脚本（机器）+ 人工复核清单（人）**：先跑 `scripts/` 下的审计脚本（共 19 条规则），发现分三级：**blocker**（必须修）、**warning**（修或写豁免理由）、**nit**（顺手修）；再按对应 skill 的复核清单过一遍脚本抓不到的（内容真实性、越权、口径一致）。blocker 清零才算做完；为清零改规则算作弊，不许。
+2. **硬门，不是提醒**：hooks 在关键操作前自动拦截或警告（见 `hooks/`），而不是只在文档里写一句"请注意"。
+3. **方法论沉淀在 skill 里**：流程、检查清单、口径都写在 `skills/` 的方法论里，命令只是入口；换个 agent 平台也能复用同一套做法。
+4. **可验，不是可信**：`fixtures/` 备有坏/好对照用例，`smoke_test.py` 一键验证，规则有没有生效、自己跑一遍就知道。
+
+## 快速上手
+
+```bash
+# 1. 安装（Claude Code 里运行）
+/plugin marketplace add lhg-plugs/lhg-resume
+/plugin install lhg-resume@lhg-plugs
+
+# 2. 求职信+JD 一条龙：JD 拆解→三段式求职信（钩子+匹配论证+行动收尾）→称呼
+/lhg-resume:cover-letter --resume resume.md（然后粘贴 JD）
+```
 
 | 命令 | 作用 | 示例 |
 |---|---|---|
-| `/lhg-resume:resume` | 简历+JD 一条龙：ATS 诊断→bullet 改写→多版本→PDF 导出 | `/lhg-resume:resume`（然后粘贴简历和 JD） |
-| `/lhg-resume:resume-interview` | 模拟面试：预测题→一次一题问答→STAR 评分→复盘 | `/lhg-resume:resume-interview --rounds 3` |
-| `/lhg-resume:resume-audit` | 简历体检：16 条规则审计 + 人工复核清单 | `/lhg-resume:resume-audit --jd jd.txt` |
-| `/lhg-resume:cover-letter` | 针对性求职信：JD 拆解→三段式写作→称呼/公司名/岗位名校验 | `/lhg-resume:cover-letter --resume resume.md`（然后粘贴 JD） |
-| `/lhg-resume:linkedin` | LinkedIn 资料打造：headline 公式→About 故事线→经历改写→技能标签+背书策略 | `/lhg-resume:linkedin --resume resume.md`（+目标岗位） |
-
-## 自查说明
-
-自查 = 确定性脚本（机器）+ 人工复核清单（人）：
-
-1. 先跑 `scripts/audit/resume_audit.py --target <简历文件> --jd <JD文件>`，零成本；
-2. 发现分三级：**blocker**（联系方式缺失，必须修）、**warning**（无动词/无量化/关键词覆盖低，修或写豁免理由）、**nit**（bullet 过长、超 2 页）；
-3. 再按 `lhg-rs-ats` 第 5 节过一遍脚本抓不到的（数字真实性、关键词自然度、错别字）。
-
-blocker 清零才算"可投递"；**为清零编数字算作弊，绝不许**。
-
-## 目录结构
-
-```
-lhg-resume/
-├── .claude-plugin/          # plugin.json（插件清单）+ marketplace.json（本仓即市场）
-├── commands/                # 5 个命令：resume / resume-interview / resume-audit / cover-letter / linkedin
-├── skills/                  # 6 个平台中立 skill（lhg-rs-ats/bullet/version/interview/cover-letter/linkedin）
-├── agents/                  # 3 个专家 agent（resume-builder / resume-auditor / interview-coach）
-├── hooks/                   # 2 个硬门（上传拦截 / 写简历提醒）+ 豁免说明
-├── scripts/audit/           # 20 条确定性审计规则（11 简历 + 5 求职信 + 4 LinkedIn，零第三方依赖）
-├── fixtures/                # 冒烟测试用例（bad.md / good.md / jd.txt + 求职信 bad/good/jd-cover-letter.txt + LinkedIn bad/good）
-├── smoke_test.py            # 一键冒烟测试
-├── ATTRIBUTION.md           # 灵感来源与许可声明
-└── LICENSE                  # MIT
-```
+| `/lhg-resume:cover-letter` | 求职信+JD 一条龙：JD 拆解→三段式求职信（钩子+匹配论证+行动收尾）→称呼/公司名/岗位名校验→一页纸交付… | `/lhg-resume:cover-letter --resume resume.md（然后粘贴 JD）` |
+| `/lhg-resume:linkedin` | LinkedIn 资料打造：基于你的简历重写 headline（职业头衔公式）→About 故事线→经历 bullet … | `/lhg-resume:linkedin --resume resume.md（+目标岗位）` |
+| `/lhg-resume:resume` | 简历+JD 一条龙：ATS诊断→bullet量化改写→多版本管理→PDF导出，全程本地处理。 | `/lhg-resume:resume（然后粘贴简历和 JD）` |
+| `/lhg-resume:resume-audit` | 简历体检：跑确定性审计脚本（关键词/日期/联系方式/动词/量化），输出分级报告。 | `/lhg-resume:resume-audit --jd jd.txt` |
+| `/lhg-resume:resume-interview` | 基于你的简历模拟面试：预测题→模拟问答→STAR评分→追问，给出可执行的改进清单。 | `/lhg-resume:resume-interview --rounds 3` |
 
 ## 什么时候用 / 什么时候不用（FAQ）
 
 **什么时候用：**
 
-- 你要投简历了，但不知道 ATS 那关怎么过 → 用 `/lhg-resume:resume`，先诊断再改
-- 你的简历全是"负责""参与"，想改成"做成了什么" → `lhg-rs-bullet` 的动词库+量化公式就是干这个的
-- 你海投 10 家，想每家都定制一版不断片 → `lhg-rs-version` 的版本库+CHANGELOG
-- 你拿到面试了，想提前把坑踩完 → `/lhg-resume:resume-interview`，一次一题，真追问
-- 你要投一家特别想去的公司，想附一封针对性求职信 → `/lhg-resume:cover-letter`，JD 拆解→三段式→三要素校验，一家公司一封
-- 你的 LinkedIn 还是简历复印件，headline 写着"求职中" → `/lhg-resume:linkedin`，headline 公式→About 故事线→技能标签+背书，输出可直接粘贴的资料包
+- 你需要求职信+JD 一条龙时 → 用 `/lhg-resume:cover-letter`
+- 你需要LinkedIn 资料打造时 → 用 `/lhg-resume:linkedin`
+- 你需要简历+JD 一条龙时 → 用 `/lhg-resume:resume`
 
 **什么时候不用：**
 
-- 你想让 AI 帮你"编"一段漂亮的经历 → **本插件不干这个**，这是红线；没有证据的数字一律标 `[待确认]`
-- 你要的是英文学术 CV（教授/博士后那种）→ 本插件按求职简历设计，学术 CV 格式差异大
-- 你希望简历自动上传到招聘网站 → **不许**，隐私硬门会拦截；简历只做本地处理
-- 你只想找个简历模板套一套 → 去套模板更快；本插件是"诊断+改写+面试"全链路，模板只是副产品
+- 你只需要其中一个零散能力时 → 本插件是成套流程，单点需求用更轻量的 skill 更合适
+- 你希望 AI 完全自由发挥、不接受任何自查与硬门时 → 它的规则审计与 hooks 会介入（可关，但那就别装它）
+- 🔒 隐私声明（先看这个）：你的简历只在本地处理，绝不上传到任何外部服务；
+- 你的场景不在上面命令表覆盖范围内时 → 先看命令表，没有对应命令就别硬套
 
-**隐私再强调一遍**：简历含手机号、邮箱等个人隐私。本插件所有处理都在本地完成，
-hooks 会拦截 `curl -F` 上传、`scp` 传送等可疑命令。如需外发，请先脱敏或使用投递版 PDF 手动上传。
+## 目录结构
 
-## lhg-plugs 插件矩阵
-
-| 插件 | 一句话 | 安装 |
-|---|---|---|
-| [lhg-resume](https://github.com/lhg-plugs/lhg-resume) | 简历优化专家：ATS 诊断到模拟面试一条龙 + 针对性求职信 | `/plugin install lhg-resume@lhg-plugs` |
-| *（后续插件在此追加，保持表格格式一致）* | | |
+```
+lhg-resume/
+├── smoke_test.py          # 一键冒烟测试
+├── ATTRIBUTION.md         # 灵感来源与许可声明
+├── LICENSE                # MIT
+├── README.md              # 本文件
+├── .claude-plugin/
+├── agents/
+├── assets/
+├── commands/
+├── fixtures/
+├── hooks/
+├── scripts/
+├── skills/
+```
 
 ## 自检与反馈
 
-本插件自带质检：每次使用后可跑 `python3 smoke_test.py` 一键验证（JSON 合法、skill/command/agent 完整性、20 条规则、fixtures 命中、hooks 行为）。
+本插件自带质检：每次使用后可跑 `python3 smoke_test.py` 一键验证（本次实测 70 项全部通过）。
 
 发现 bug 或有改进建议，以 `[QC] <一句话问题>` 为标题提交到 https://github.com/lhg-plugs/lhg-resume/issues，正文写清"复现步骤 → 实际表现 → 期望表现"。
+
+同门插件见 [lhg-plugs](https://github.com/lhg-plugs)，86 个插件的完整矩阵在 [marketplace](https://github.com/lhg-plugs/marketplace) 维护。
 
 ## 出品：刘洪光
 
